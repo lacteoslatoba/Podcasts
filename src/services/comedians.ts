@@ -13,9 +13,18 @@ const COMEDY_TERMS = [
   'chistes mexicanos',
   'humor mexicano',
   'comedia podcast mexico',
+  'chistes',
+  'standup mexicano',
+  'comedia en español',
+  'monologos comedia',
+  'humor latino',
+  'stand up comedy',
+  'radio de chistes',
+  'comedia mexicana podcast',
+  'risa mexicana',
 ];
 
-/** Comediantes mexicanos conocidos con podcast propio, para enriquecer la búsqueda. */
+/** Comediantes mexicanos/latinos conocidos (se busca su podcast en el catálogo). */
 const KNOWN_COMEDIANS = [
   'franco escamilla',
   'ricardo o\'farrill',
@@ -27,6 +36,20 @@ const KNOWN_COMEDIANS = [
   'werevertumorro',
   'yordi rosado',
   'consuelo duval',
+  'guerra de chistes',
+  'teo gonzalez',
+  'jorge ferguson',
+  'adrian marcelo',
+  'adam ray',
+  'juan verduzco',
+  'jose ordonez',
+  'alex montiel',
+  'el borras',
+  'marianna sierra',
+  'pablogh',
+  'carlos mena',
+  'el gallito english',
+  'humor mexicano podcast',
 ];
 
 /** País del catálogo de iTunes a consultar (México). */
@@ -89,6 +112,14 @@ export const TOP10_MX_COMEDIANS: Podcast[] = [
     feedUrl: 'https://feeds.simplecast.com/9E9cxNeF',
     artworkUrl: 'https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/8c/57/f4/8c57f44f-7aca-bebc-da1d-c9471f8f360a/mza_18065237259902138301.jpg/600x600bb.jpg',
   },
+  {
+    id: '1504019123',
+    title: 'Guerra de Chistes',
+    author: 'Carlos Salgado',
+    description: 'El clásico formato de duelo de chistes en radio, en podcast.',
+    feedUrl: 'https://anchor.fm/s/16e0269c/podcast/rss',
+    artworkUrl: 'https://is1-ssl.mzstatic.com/image/thumb/Podcasts115/v4/9d/9b/9f/9d9b9f39-e253-b17b-2d5a-1ba462d9e152/mza_3190506789642940581.jpg/600x600bb.jpg',
+  },
 ];
 
 /** Normaliza el nombre de un comediante para agrupar sin distinguir mayúsculas. */
@@ -144,6 +175,58 @@ export function groupByComedian(shows: Podcast[]): { comedian: string; shows: Po
     rows.push({ comedian, shows: list });
   }
   rows.sort((a, b) => b.shows.length - a.shows.length);
+  return rows;
+}
+
+/** Etiquetas de "género/categoría" de humor según el contenido del show. */
+export interface ComedianCategory {
+  id: string;
+  name: string;
+}
+
+/**
+ * Clasifica un podcast de comedia en una categoría de humor (género), según
+ * palabras clave del título/autor. Orden estable para la navegación.
+ */
+export function categorizeComedian(p: Podcast): ComedianCategory {
+  const hay = `${p.title} ${p.author} ${p.description}`.toLowerCase();
+  if (/(stand.?up|monologo|especial|comedia en vivo)/.test(hay)) {
+    return { id: 'standup', name: 'Stand-up y Monólogos' };
+  }
+  if (/(chiste|guerra|albures|humor verde)/.test(hay)) {
+    return { id: 'chistes', name: 'Chistes' };
+  }
+  if (/(sátira|satira|politica|noticias|actualidad|pulso)/.test(hay)) {
+    return { id: 'satira', name: 'Sátira y Actualidad' };
+  }
+  if (/(entrevista|platica|conversacion)/.test(hay)) {
+    return { id: 'entrevistas', name: 'Entrevistas y Charlas' };
+  }
+  return { id: 'variado', name: 'Más Comedia' };
+}
+
+/** Orden de presentación de las categorías. */
+const CATEGORY_ORDER = ['standup', 'chistes', 'satira', 'entrevistas', 'variado'];
+
+/** Agrupa los shows de comedia por categoría de humor (género). */
+export function groupByCategory(shows: Podcast[]): { category: ComedianCategory; shows: Podcast[] }[] {
+  const buckets = new Map<string, Podcast[]>();
+  for (const s of shows) {
+    const cat = categorizeComedian(s);
+    const list = buckets.get(cat.id) ?? [];
+    list.push(s);
+    buckets.set(cat.id, list);
+  }
+  const rows = [];
+  for (const [id, list] of buckets.entries()) {
+    const cat = categorizeComedian(list[0]);
+    rows.push({ category: cat, shows: list });
+  }
+  rows.sort(
+    (a, b) =>
+      CATEGORY_ORDER.indexOf(a.category.id) - CATEGORY_ORDER.indexOf(b.category.id) ||
+      b.shows.length - a.shows.length,
+  );
   return rows;
 }
 

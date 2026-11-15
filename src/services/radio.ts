@@ -13,6 +13,8 @@ export interface RadioStation {
   favicon: string;
   streamUrl: string;
   tags: string;
+  /** Número de clics/escuchas (ranking real de la API) */
+  clickcount?: number;
 }
 
 const API_BASE = 'https://de1.api.radio-browser.info/json/stations/search';
@@ -24,6 +26,9 @@ interface RawStation {
   favicon: string;
   url_resolved: string;
   tags: string;
+  language: string;
+  clickcount?: number;
+  votes?: number;
 }
 
 /** Palabras clave de "radio hablada" (voz) frente a música. */
@@ -39,6 +44,10 @@ export const MUSIC_GENRES = [
   'cumbia', 'norteño', 'mariachi', 'banda', 'ranchera', 'jazz', 'blues',
   'classical', 'electronica', 'house', 'dance', 'reggae', 'hiphop', 'rap',
   'metal', 'indie', 'folk', 'romantica', 'tropical', 'vallenato', 'corridos',
+  // Más variedad para ampliar la base
+  'oldies', '80s', '90s', 'chill', 'lofi', 'techno', 'trance', 'funk', 'soul',
+  'rnb', 'disco', 'gospel', 'opera', 'soundtrack', 'kpop', 'alternative',
+  'acoustic', 'instrumental', 'new age', 'christmas', 'edm', 'phonk', 'merengue',
 ];
 
 function classify(station: { name: string; tags: string }): 'talk' | 'music' | 'other' {
@@ -78,6 +87,7 @@ function normalizeStation(s: RawStation): RadioStation {
     favicon: s.favicon || '',
     streamUrl: s.url_resolved,
     tags: s.tags || '',
+    clickcount: s.clickcount ?? 0,
   };
 }
 
@@ -99,11 +109,10 @@ export async function fetchMusicStations(limit = 1500): Promise<RadioStation[]> 
   return all.filter((s) => classify(s) === 'music' && !!s.streamUrl);
 }
 
-/** Busca estaciones de un género concreto (por etiqueta) en español. */
-async function fetchByTag(tag: string, limit = 80): Promise<RadioStation[]> {
+/** Busca estaciones de música de un género concreto (por etiqueta). Sin filtro de idioma para tener más variedad mundial. */
+async function fetchByTag(tag: string, limit = 120): Promise<RadioStation[]> {
   const params = new URLSearchParams({
     tag,
-    language: 'spanish',
     order: 'clickcount',
     reverse: 'true',
     limit: String(limit),
@@ -132,7 +141,7 @@ export async function fetchMusicByAllGenres(): Promise<RadioStation[]> {
   for (let i = 0; i < genres.length; i += BATCH) {
     const batchGenres = genres.slice(i, i + BATCH);
     const batchResults = await Promise.allSettled(
-      batchGenres.map((g) => fetchByTag(g, 40)),
+      batchGenres.map((g) => fetchByTag(g, 120)),
     );
     for (const r of batchResults) {
       if (r.status !== 'fulfilled') continue;
@@ -148,6 +157,28 @@ export async function fetchMusicByAllGenres(): Promise<RadioStation[]> {
   }
 
   return out;
+}
+
+/**
+ * Estaciones de MVS Radio (EXA FM, La Mejor, MVS Noticias, Globo, Stereorey…).
+ * Se busca por nombre "MVS Radio" para mostrarlas como sección destacada.
+ */
+export async function fetchMVStations(limit = 25): Promise<RadioStation[]> {
+  const params = new URLSearchParams({
+    name: 'MVS Radio',
+    order: 'clickcount',
+    reverse: 'true',
+    limit: String(limit),
+    hidebroken: 'true',
+  });
+  const res = await fetch(`${API_BASE}?${params.toString()}`, {
+    headers: { 'User-Agent': 'PodcastGymApp/1.0' },
+  });
+  if (!res.ok) return [];
+  const data: RawStation[] = await res.json();
+  return data
+    .filter((s) => !!s.url_resolved && /spa|spanish|es/i.test(s.language || ''))
+    .map(normalizeStation);
 }
 
 
