@@ -41,3 +41,5 @@ yarn-error.*
 /android
 metro-server.log
 *.tmp.js
+
+metro-server*.log
